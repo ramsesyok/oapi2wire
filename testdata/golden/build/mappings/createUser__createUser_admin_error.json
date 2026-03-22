@@ -1,0 +1,26 @@
+{
+  "id": "createUser_admin_error",
+  "name": "createUser_admin_error",
+  "priority": 10,
+  "metadata": {
+    "generator": "oapi2wire",
+    "operationId": "createUser",
+    "caseId": "createUser_admin_error"
+  },
+  "request": {
+    "method": "POST",
+    "urlPathTemplate": "/users",
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.role[?(@ == 'admin')]"
+      }
+    ]
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "createUser/createUser_admin_error.json"
+  }
+}

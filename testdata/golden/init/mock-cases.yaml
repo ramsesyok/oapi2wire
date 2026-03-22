@@ -1,0 +1,33 @@
+version: 1
+defaults:
+  response:
+    headers:
+      Content-Type: application/json
+
+cases:
+  - id: createUser_default
+    operationId: createUser
+    priority: 100
+    request:
+      body:
+        equalToJson:
+          name: "TODO"
+          role: "TODO"
+    response:
+      status: 201
+      bodyFile: createUser/createUser_default.json
+
+  - id: getUser_default
+    operationId: getUser
+    priority: 100
+    request:
+      pathParams:
+        id:
+          equalTo: "TODO"
+      # optional query parameters:
+      # mode:
+      #   equalTo: "TODO"
+    response:
+      status: 200
+      bodyFile: getUser/getUser_default.json
+

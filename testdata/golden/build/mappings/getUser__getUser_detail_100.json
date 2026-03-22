@@ -1,0 +1,31 @@
+{
+  "id": "getUser_detail_100",
+  "name": "getUser_detail_100",
+  "priority": 10,
+  "metadata": {
+    "generator": "oapi2wire",
+    "operationId": "getUser",
+    "caseId": "getUser_detail_100"
+  },
+  "request": {
+    "method": "GET",
+    "urlPathTemplate": "/users/{id}",
+    "pathParameters": {
+      "id": {
+        "equalTo": "100"
+      }
+    },
+    "queryParameters": {
+      "mode": {
+        "equalTo": "detail"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "getUser/getUser_detail_100.json"
+  }
+}

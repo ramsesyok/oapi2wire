@@ -1,0 +1,6 @@
+{
+  "message": "no mock case matched",
+  "method": "POST",
+  "operationId": "createUser",
+  "path": "/users"
+}

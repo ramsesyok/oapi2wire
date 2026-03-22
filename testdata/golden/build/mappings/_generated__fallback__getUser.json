@@ -1,0 +1,21 @@
+{
+  "id": "_generated_fallback_getUser",
+  "name": "_generated_fallback_getUser",
+  "priority": 1000000,
+  "metadata": {
+    "generator": "oapi2wire",
+    "operationId": "getUser",
+    "caseId": "_generated_fallback_getUser"
+  },
+  "request": {
+    "method": "GET",
+    "urlPathTemplate": "/users/{id}"
+  },
+  "response": {
+    "status": 501,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "_generated/fallback/getUser.json"
+  }
+}

@@ -1,0 +1,31 @@
+version: 1
+defaults:
+  response:
+    headers:
+      Content-Type: application/json
+
+cases:
+  - id: getUser_detail_100
+    operationId: getUser
+    priority: 10
+    request:
+      pathParams:
+        id:
+          equalTo: "100"
+      query:
+        mode:
+          equalTo: "detail"
+    response:
+      status: 200
+      bodyFile: getUser/getUser_detail_100.json
+
+  - id: createUser_admin_error
+    operationId: createUser
+    priority: 10
+    request:
+      body:
+        matchesJsonPath:
+          - "$.role[?(@ == 'admin')]"
+    response:
+      status: 403
+      bodyFile: createUser/createUser_admin_error.json
