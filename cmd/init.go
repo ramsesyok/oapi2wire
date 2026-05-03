@@ -5,11 +5,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/ramsesyok/oapi2wire/internal/cases"
-	"github.com/ramsesyok/oapi2wire/internal/model"
-	"github.com/ramsesyok/oapi2wire/internal/openapi"
+	lib "github.com/ramsesyok/oapi2wire/pkg/oapi2wire"
 	"github.com/spf13/cobra"
 )
 
@@ -42,44 +39,19 @@ func init() {
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
-	// 1. Load OpenAPI
-	doc, err := openapi.Load(initOpenAPI)
+	result, err := lib.Init(lib.InitOptions{
+		OpenAPIPath:   initOpenAPI,
+		OutCasesPath:  initOutCases,
+		ResponsesRoot: initResponsesRoot,
+		Force:         initForce,
+		Strict:        initStrict,
+	})
+	printDiags(result.Diagnostics)
 	if err != nil {
-		return fmt.Errorf("loading OpenAPI: %w", err)
+		return err
 	}
 
-	// 2. Build operation index
-	ops, diags := openapi.BuildOperationIndex(doc)
-	if model.HasErrors(diags) {
-		printDiags(diags)
-		return fmt.Errorf("OpenAPI has errors")
-	}
-	if initStrict && len(diags) > 0 {
-		printDiags(diags)
-		return fmt.Errorf("OpenAPI has warnings (--strict)")
-	}
-	printDiags(diags)
-
-	// 3. Generate template
-	result, err := cases.GenerateTemplate(doc, ops)
-	if err != nil {
-		return fmt.Errorf("generating template: %w", err)
-	}
-
-	// 4. Check case YAML existence before writing
-	if !initForce {
-		if _, err := os.Stat(initOutCases); err == nil {
-			return fmt.Errorf("file already exists: %s (use --force to overwrite)", initOutCases)
-		}
-	}
-
-	// 5. Write case YAML and response stubs
-	written, err := result.Write(initOutCases, initResponsesRoot, initForce)
-	if err != nil {
-		return fmt.Errorf("writing init output: %w", err)
-	}
-
-	fmt.Printf("wrote case YAML → %s\n", initOutCases)
-	fmt.Printf("generated %d cases, %d response stubs\n", len(ops), written)
+	fmt.Printf("wrote case YAML → %s\n", result.OutCasesPath)
+	fmt.Printf("generated %d cases, %d response stubs\n", result.GeneratedCases, result.ResponseFilesWritten)
 	return nil
 }

@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ramsesyok/oapi2wire/internal/cases"
-	"github.com/ramsesyok/oapi2wire/internal/model"
-	"github.com/ramsesyok/oapi2wire/internal/openapi"
+	lib "github.com/ramsesyok/oapi2wire/pkg/oapi2wire"
 	"github.com/spf13/cobra"
 )
 
@@ -37,43 +35,23 @@ func init() {
 }
 
 func runValidate(cmd *cobra.Command, args []string) error {
-	// Load OpenAPI
-	doc, err := openapi.Load(validateOpenAPI)
-	if err != nil {
-		return fmt.Errorf("loading OpenAPI: %w", err)
-	}
-
-	// Build operation index
-	ops, diags := openapi.BuildOperationIndex(doc)
-	if model.HasErrors(diags) {
-		printDiags(diags)
-		return fmt.Errorf("OpenAPI has errors")
-	}
-
-	// Load case YAML
-	cf, err := cases.Load(validateCases)
-	if err != nil {
-		return fmt.Errorf("loading case YAML: %w", err)
-	}
-
-	// Validate
-	diags = append(diags, cases.Validate(cf, ops, cases.ValidateConfig{
+	result, err := lib.Validate(lib.ValidateOptions{
+		OpenAPIPath:   validateOpenAPI,
+		CasesPath:     validateCases,
 		ResponsesRoot: validateResponsesRoot,
-	})...)
-
-	printDiags(diags)
-
-	if model.HasErrors(diags) {
-		return fmt.Errorf("validation failed with errors")
+	})
+	printDiags(result.Diagnostics)
+	if err != nil {
+		return err
 	}
 
-	if len(diags) == 0 {
+	if len(result.Diagnostics) == 0 {
 		fmt.Println("OK: no issues found")
 	}
 	return nil
 }
 
-func printDiags(diags []model.Diagnostic) {
+func printDiags(diags []lib.Diagnostic) {
 	for _, d := range diags {
 		fmt.Fprintln(os.Stderr, d.String())
 	}
