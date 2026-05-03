@@ -9,8 +9,9 @@ import (
 	"github.com/ramsesyok/oapi2wire/internal/model"
 )
 
-// CopyBodyFiles copies all bodyFiles referenced in cases from responsesRoot to outFilesDir.
-func CopyBodyFiles(cases []model.CaseSpec, responsesRoot, outFilesDir string) error {
+// CopyBodyFiles copies all existing bodyFiles referenced in cases from responsesRoot to outFilesDir.
+func CopyBodyFiles(cases []model.CaseSpec, responsesRoot, outFilesDir string) (int, error) {
+	copied := 0
 	for _, c := range cases {
 		if c.Response.BodyFile == "" {
 			continue
@@ -25,10 +26,11 @@ func CopyBodyFiles(cases []model.CaseSpec, responsesRoot, outFilesDir string) er
 		}
 
 		if err := copyFile(src, dst); err != nil {
-			return fmt.Errorf("copying %s → %s: %w", src, dst, err)
+			return copied, fmt.Errorf("copying %s → %s: %w", src, dst, err)
 		}
+		copied++
 	}
-	return nil
+	return copied, nil
 }
 
 // copyFile copies src to dst, creating parent directories as needed.
