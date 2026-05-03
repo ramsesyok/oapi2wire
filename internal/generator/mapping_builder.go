@@ -132,5 +132,5 @@ func mergeHeaders(defaults, caseHeaders map[string]string) map[string]string {
 // MappingFileName returns the canonical file name for a mapping file.
 // Format: <operationId>__<caseId>.json
 func MappingFileName(operationID, caseID string) string {
-	return fmt.Sprintf("%s__%s.json", operationID, caseID)
+	return fmt.Sprintf("%s__%s.json", safeFileNamePart(operationID), safeFileNamePart(caseID))
 }

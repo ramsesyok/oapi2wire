@@ -29,8 +29,9 @@ func NeedsAutoFallback(operationID string, cases []model.CaseSpec) bool {
 
 // BuildFallback creates the auto-generated fallback for one operation.
 func BuildFallback(op model.ResolvedOperation) FallbackResult {
-	mappingFile := fmt.Sprintf("_generated__fallback__%s.json", op.OperationID)
-	bodyFile := fmt.Sprintf("_generated/fallback/%s.json", op.OperationID)
+	safeOperationID := safeFileNamePart(op.OperationID)
+	mappingFile := fmt.Sprintf("_generated__fallback__%s.json", safeOperationID)
+	bodyFile := fmt.Sprintf("_generated/fallback/%s.json", safeOperationID)
 
 	body := map[string]interface{}{
 		"message":     "no mock case matched",

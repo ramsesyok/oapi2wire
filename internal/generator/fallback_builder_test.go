@@ -82,3 +82,23 @@ func TestBuildFallback(t *testing.T) {
 		t.Errorf("expected urlPathTemplate /users/{id}, got %s", result.Mapping.Request.URLPathTemplate)
 	}
 }
+
+func TestBuildFallback_SanitizesOperationIDInFileNames(t *testing.T) {
+	op := model.ResolvedOperation{
+		OperationID: "../admin/getUser",
+		Method:      "GET",
+		Path:        "/users/{id}",
+	}
+
+	result := BuildFallback(op)
+
+	if result.MappingFileName != "_generated__fallback__admin_getUser.json" {
+		t.Errorf("unexpected MappingFileName: %s", result.MappingFileName)
+	}
+	if result.BodyFileName != "_generated/fallback/admin_getUser.json" {
+		t.Errorf("unexpected BodyFileName: %s", result.BodyFileName)
+	}
+	if result.Mapping.Metadata.OperationID != "../admin/getUser" {
+		t.Errorf("metadata operationId should keep original value, got %s", result.Mapping.Metadata.OperationID)
+	}
+}

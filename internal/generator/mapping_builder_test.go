@@ -172,3 +172,11 @@ func TestMappingFileName(t *testing.T) {
 		t.Errorf("expected %s, got %s", want, got)
 	}
 }
+
+func TestMappingFileName_SanitizesPathSeparators(t *testing.T) {
+	got := MappingFileName("../admin/getUser", `..\evil\case`)
+	want := "admin_getUser__evil_case.json"
+	if got != want {
+		t.Errorf("expected %s, got %s", want, got)
+	}
+}
