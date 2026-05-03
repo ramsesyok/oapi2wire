@@ -203,10 +203,11 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 	}
 
 	filesDir := filepath.Join(opts.OutDir, "__files")
-	if err := generator.CopyBodyFiles(cf.Cases, opts.ResponsesRoot, filesDir); err != nil {
+	copied, err := generator.CopyBodyFiles(cf.Cases, opts.ResponsesRoot, filesDir)
+	if err != nil {
 		return result, fmt.Errorf("copying body files: %w", err)
 	}
-	result.BodyFilesCopied = countCasesWithBodyFiles(cf.Cases)
+	result.BodyFilesCopied = copied
 
 	if !opts.NoAutoFallback {
 		opIDs := make([]string, 0, len(ops))
@@ -303,14 +304,4 @@ func hasErrors(diags []Diagnostic) bool {
 		}
 	}
 	return false
-}
-
-func countCasesWithBodyFiles(caseSpecs []model.CaseSpec) int {
-	count := 0
-	for _, cs := range caseSpecs {
-		if cs.Response.BodyFile != "" {
-			count++
-		}
-	}
-	return count
 }

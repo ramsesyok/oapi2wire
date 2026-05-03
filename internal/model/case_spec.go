@@ -2,8 +2,8 @@ package model
 
 // CaseFile is the root of a case YAML file.
 type CaseFile struct {
-	Version  int       `yaml:"version"`
-	Defaults Defaults  `yaml:"defaults"`
+	Version  int        `yaml:"version"`
+	Defaults Defaults   `yaml:"defaults"`
 	Cases    []CaseSpec `yaml:"cases"`
 }
 
