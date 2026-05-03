@@ -3,18 +3,22 @@ package openapi
 import (
 	"testing"
 
-	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pb33f/libopenapi"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/ramsesyok/oapi2wire/internal/model"
 )
 
-func loadFromYAML(t *testing.T, yaml string) *openapi3.T {
+func loadFromYAML(t *testing.T, yaml string) *v3.Document {
 	t.Helper()
-	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromData([]byte(yaml))
+	doc, err := libopenapi.NewDocument([]byte(yaml))
 	if err != nil {
 		t.Fatalf("failed to load OpenAPI: %v", err)
 	}
-	return doc
+	model, err := doc.BuildV3Model()
+	if err != nil {
+		t.Fatalf("failed to build OpenAPI model: %v", err)
+	}
+	return &model.Model
 }
 
 func TestBuildOperationIndex_Basic(t *testing.T) {

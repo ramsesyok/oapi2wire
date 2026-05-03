@@ -3,15 +3,16 @@ package cases
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/getkin/kin-openapi/openapi3"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/ramsesyok/oapi2wire/internal/openapi"
 )
 
 const updateGolden = false
 
-func loadTestOpenAPI(t *testing.T) *openapi3.T {
+func loadTestOpenAPI(t *testing.T) *v3.Document {
 	t.Helper()
 	doc, err := openapi.Load(filepath.Join("..", "..", "testdata", "fixtures", "openapi.yaml"))
 	if err != nil {
@@ -46,9 +47,15 @@ func TestGenerateTemplate_Golden(t *testing.T) {
 		t.Fatalf("reading golden: %v", err)
 	}
 
-	if string(result.CaseYAML) != string(want) {
+	gotYAML := normalizeNewlines(string(result.CaseYAML))
+	wantYAML := normalizeNewlines(string(want))
+	if gotYAML != wantYAML {
 		t.Errorf("case YAML mismatch\ngot:\n%s\nwant:\n%s", result.CaseYAML, want)
 	}
+}
+
+func normalizeNewlines(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
 }
 
 func TestGenerateTemplate_ResponseBodies(t *testing.T) {

@@ -3,8 +3,12 @@ package openapi
 import (
 	"sort"
 	"strconv"
+	"strings"
 
-	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pb33f/libopenapi/datamodel/high/base"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/pb33f/libopenapi/orderedmap"
+	"go.yaml.in/yaml/v4"
 )
 
 const maxDepth = 10
@@ -12,43 +16,57 @@ const maxDepth = 10
 // MinimalSample generates a minimal Go value from a JSON Schema.
 // Used for init template body values.
 // Returns nil if schema is nil.
-func MinimalSample(schema *openapi3.SchemaRef) interface{} {
-	if schema == nil || schema.Value == nil {
+func MinimalSample(schemaProxy *base.SchemaProxy) interface{} {
+	if schemaProxy == nil {
 		return nil
 	}
-	return minimalFromSchema(schema.Value, 0)
+	schema, err := schemaProxy.BuildSchema()
+	if err != nil || schema == nil {
+		return nil
+	}
+	return minimalFromSchema(schema, 0)
 }
 
 // minimalFromSchema is the recursive helper.
-func minimalFromSchema(s *openapi3.Schema, depth int) interface{} {
+func minimalFromSchema(s *base.Schema, depth int) interface{} {
 	if s == nil || depth > maxDepth {
 		return nil
 	}
 
+	if s.Example != nil {
+		if v := yamlNodeToInterface(s.Example); v != nil {
+			return v
+		}
+	}
+
 	// Handle allOf/anyOf/oneOf by using the first option
-	if len(s.AllOf) > 0 && s.AllOf[0] != nil && s.AllOf[0].Value != nil {
-		return minimalFromSchema(s.AllOf[0].Value, depth+1)
+	if len(s.AllOf) > 0 && s.AllOf[0] != nil {
+		if schema, err := s.AllOf[0].BuildSchema(); err == nil && schema != nil {
+			return minimalFromSchema(schema, depth+1)
+		}
 	}
-	if len(s.AnyOf) > 0 && s.AnyOf[0] != nil && s.AnyOf[0].Value != nil {
-		return minimalFromSchema(s.AnyOf[0].Value, depth+1)
+	if len(s.AnyOf) > 0 && s.AnyOf[0] != nil {
+		if schema, err := s.AnyOf[0].BuildSchema(); err == nil && schema != nil {
+			return minimalFromSchema(schema, depth+1)
+		}
 	}
-	if len(s.OneOf) > 0 && s.OneOf[0] != nil && s.OneOf[0].Value != nil {
-		return minimalFromSchema(s.OneOf[0].Value, depth+1)
+	if len(s.OneOf) > 0 && s.OneOf[0] != nil {
+		if schema, err := s.OneOf[0].BuildSchema(); err == nil && schema != nil {
+			return minimalFromSchema(schema, depth+1)
+		}
 	}
 
 	types := s.Type
-	if types == nil {
-		// Try to infer from properties
-		if len(s.Properties) > 0 {
+	if len(types) == 0 {
+		if s.Properties != nil && s.Properties.Len() > 0 {
 			return buildObject(s, depth)
 		}
 		if s.Items != nil {
 			return buildArray(s, depth)
 		}
-		return nil
 	}
 
-	for _, t := range *types {
+	for _, t := range types {
 		switch t {
 		case "object":
 			return buildObject(s, depth)
@@ -68,83 +86,83 @@ func minimalFromSchema(s *openapi3.Schema, depth int) interface{} {
 	return nil
 }
 
-func buildObject(s *openapi3.Schema, depth int) interface{} {
+func buildObject(s *base.Schema, depth int) interface{} {
 	obj := make(map[string]interface{})
-	if len(s.Properties) == 0 {
+	if s.Properties == nil || s.Properties.Len() == 0 {
 		return obj
 	}
-	// Sort property names for deterministic output
-	keys := make([]string, 0, len(s.Properties))
-	for k := range s.Properties {
-		keys = append(keys, k)
+
+	keys := make([]string, 0, s.Properties.Len())
+	props := make(map[string]*base.SchemaProxy)
+	for pair := s.Properties.Oldest(); pair != nil; pair = pair.Next() {
+		keys = append(keys, pair.Key)
+		props[pair.Key] = pair.Value
 	}
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		propRef := s.Properties[k]
-		if propRef != nil && propRef.Value != nil {
-			obj[k] = minimalFromSchema(propRef.Value, depth+1)
-		} else {
-			obj[k] = "TODO"
+		propRef := props[k]
+		if propRef != nil {
+			if prop, err := propRef.BuildSchema(); err == nil && prop != nil {
+				obj[k] = minimalFromSchema(prop, depth+1)
+				continue
+			}
 		}
+		obj[k] = "TODO"
 	}
 	return obj
 }
 
-func buildArray(s *openapi3.Schema, depth int) interface{} {
-	if s.Items == nil || s.Items.Value == nil {
+func buildArray(s *base.Schema, depth int) interface{} {
+	if s.Items == nil {
 		return []interface{}{}
 	}
-	elem := minimalFromSchema(s.Items.Value, depth+1)
+	if !s.Items.IsA() || s.Items.A == nil {
+		return []interface{}{}
+	}
+	item, err := s.Items.A.BuildSchema()
+	if err != nil || item == nil {
+		return []interface{}{}
+	}
+	elem := minimalFromSchema(item, depth+1)
 	return []interface{}{elem}
 }
 
 // FirstResponseExample returns the first example from a response's content for the given status.
 // Returns nil if no example is found.
-func FirstResponseExample(responses *openapi3.Responses, status int) interface{} {
+func FirstResponseExample(responses *v3.Responses, status int) interface{} {
 	if responses == nil {
 		return nil
 	}
 
 	statusStr := strconv.Itoa(status)
-	respRef := responses.Value(statusStr)
-	if respRef == nil {
+	if responses.Codes == nil {
 		return nil
 	}
-
-	resp := respRef.Value
+	resp := responses.Codes.GetOrZero(statusStr)
 	if resp == nil {
 		return nil
 	}
 
-	// Try application/json content
-	mt, ok := resp.Content["application/json"]
-	if !ok || mt == nil {
+	mt := jsonMediaType(resp.Content)
+	if mt == nil {
 		return nil
 	}
 
-	// Try Example field
 	if mt.Example != nil {
-		return mt.Example
+		return yamlNodeToInterface(mt.Example)
 	}
 
-	// Try Examples map (use first entry sorted by key)
-	if len(mt.Examples) > 0 {
-		keys := make([]string, 0, len(mt.Examples))
-		for k := range mt.Examples {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		ex := mt.Examples[keys[0]]
+	if mt.Examples != nil && mt.Examples.Len() > 0 {
+		ex := mt.Examples.First().Value()
 		if ex != nil && ex.Value != nil {
-			return ex.Value.Value
+			return yamlNodeToInterface(ex.Value)
 		}
 	}
 
-	// Try schema example
-	if mt.Schema != nil && mt.Schema.Value != nil {
-		if mt.Schema.Value.Example != nil {
-			return mt.Schema.Value.Example
+	if mt.Schema != nil {
+		if schema, err := mt.Schema.BuildSchema(); err == nil && schema != nil && schema.Example != nil {
+			return yamlNodeToInterface(schema.Example)
 		}
 	}
 
@@ -152,38 +170,52 @@ func FirstResponseExample(responses *openapi3.Responses, status int) interface{}
 }
 
 // FirstRequestBodyExample returns the first example from a requestBody's application/json content.
-func FirstRequestBodyExample(op *openapi3.Operation) interface{} {
-	if op.RequestBody == nil || op.RequestBody.Value == nil {
+func FirstRequestBodyExample(op *v3.Operation) interface{} {
+	if op == nil || op.RequestBody == nil {
 		return nil
 	}
-	mt, ok := op.RequestBody.Value.Content["application/json"]
-	if !ok || mt == nil {
+	mt := jsonMediaType(op.RequestBody.Content)
+	if mt == nil {
 		return nil
 	}
 
 	if mt.Example != nil {
-		return mt.Example
+		return yamlNodeToInterface(mt.Example)
 	}
 
-	if len(mt.Examples) > 0 {
-		keys := make([]string, 0, len(mt.Examples))
-		for k := range mt.Examples {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		ex := mt.Examples[keys[0]]
+	if mt.Examples != nil && mt.Examples.Len() > 0 {
+		ex := mt.Examples.First().Value()
 		if ex != nil && ex.Value != nil {
-			return ex.Value.Value
+			return yamlNodeToInterface(ex.Value)
 		}
 	}
 
-	if mt.Schema != nil && mt.Schema.Value != nil {
-		if mt.Schema.Value.Example != nil {
-			return mt.Schema.Value.Example
-		}
-		// Generate minimal sample from schema
+	if mt.Schema != nil {
 		return MinimalSample(mt.Schema)
 	}
 
 	return nil
+}
+
+func jsonMediaType(content *orderedmap.Map[string, *v3.MediaType]) *v3.MediaType {
+	if content == nil {
+		return nil
+	}
+	for pair := content.Oldest(); pair != nil; pair = pair.Next() {
+		if strings.Contains(pair.Key, "application/json") {
+			return pair.Value
+		}
+	}
+	return nil
+}
+
+func yamlNodeToInterface(node *yaml.Node) interface{} {
+	if node == nil {
+		return nil
+	}
+	var v interface{}
+	if err := node.Decode(&v); err != nil {
+		return nil
+	}
+	return v
 }

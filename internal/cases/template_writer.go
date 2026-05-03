@@ -8,9 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/getkin/kin-openapi/openapi3"
-	oapipkg "github.com/ramsesyok/oapi2wire/internal/openapi"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/ramsesyok/oapi2wire/internal/model"
+	oapipkg "github.com/ramsesyok/oapi2wire/internal/openapi"
 )
 
 // TemplateResult is the full generated init output for one run.
@@ -56,7 +57,7 @@ func (r *TemplateResult) Write(outCasesPath, responsesRoot string, force bool) (
 }
 
 // GenerateTemplate produces the case YAML template and response stubs from an OpenAPI doc.
-func GenerateTemplate(doc *openapi3.T, ops map[string]model.ResolvedOperation) (*TemplateResult, error) {
+func GenerateTemplate(doc *v3.Document, ops map[string]model.ResolvedOperation) (*TemplateResult, error) {
 	result := &TemplateResult{
 		ResponseFiles: make(map[string]interface{}),
 	}
@@ -110,7 +111,7 @@ func GenerateTemplate(doc *openapi3.T, ops map[string]model.ResolvedOperation) (
 
 // buildRequestYAML generates the request: sub-block as indented YAML lines (8-space indent base).
 // Returns empty string if nothing to render.
-func buildRequestYAML(op model.ResolvedOperation, rawOp *openapi3.Operation) string {
+func buildRequestYAML(op model.ResolvedOperation, rawOp *v3.Operation) string {
 	var sb strings.Builder
 
 	hasPathParams := len(op.PathParams) > 0
@@ -169,21 +170,16 @@ func buildRequestYAML(op model.ResolvedOperation, rawOp *openapi3.Operation) str
 }
 
 // buildBodyYAML generates the body: sub-block lines (10-space indent base).
-func buildBodyYAML(rawOp *openapi3.Operation) string {
-	if rawOp.RequestBody == nil || rawOp.RequestBody.Value == nil {
+func buildBodyYAML(rawOp *v3.Operation) string {
+	if rawOp.RequestBody == nil {
 		return ""
 	}
-	mt, ok := rawOp.RequestBody.Value.Content["application/json"]
-	if !ok || mt == nil {
+	mt := jsonMediaType(rawOp.RequestBody.Content)
+	if mt == nil {
 		return ""
 	}
 
-	var sample interface{}
-	if mt.Example != nil {
-		sample = mt.Example
-	} else if mt.Schema != nil {
-		sample = oapipkg.MinimalSample(mt.Schema)
-	}
+	sample := oapipkg.FirstRequestBodyExample(rawOp)
 	if sample == nil {
 		sample = map[string]interface{}{}
 	}
@@ -251,7 +247,7 @@ func scalarYAML(v interface{}) string {
 	}
 }
 
-func responseBodyFor(doc *openapi3.T, op model.ResolvedOperation) interface{} {
+func responseBodyFor(doc *v3.Document, op model.ResolvedOperation) interface{} {
 	rawOp := findRawOperation(doc, op)
 	if rawOp == nil {
 		return map[string]interface{}{}
@@ -266,13 +262,15 @@ func responseBodyFor(doc *openapi3.T, op model.ResolvedOperation) interface{} {
 
 		// Try response schema
 		statusStr := fmt.Sprintf("%d", op.RepresentativeStatus)
-		respRef := rawOp.Responses.Value(statusStr)
-		if respRef != nil && respRef.Value != nil {
-			mt, ok := respRef.Value.Content["application/json"]
-			if ok && mt != nil && mt.Schema != nil {
-				sample := oapipkg.MinimalSample(mt.Schema)
-				if sample != nil {
-					return sample
+		if rawOp.Responses.Codes != nil {
+			resp := rawOp.Responses.Codes.GetOrZero(statusStr)
+			if resp != nil {
+				mt := jsonMediaType(resp.Content)
+				if mt != nil && mt.Schema != nil {
+					sample := oapipkg.MinimalSample(mt.Schema)
+					if sample != nil {
+						return sample
+					}
 				}
 			}
 		}
@@ -281,13 +279,29 @@ func responseBodyFor(doc *openapi3.T, op model.ResolvedOperation) interface{} {
 	return map[string]interface{}{}
 }
 
-func findRawOperation(doc *openapi3.T, op model.ResolvedOperation) *openapi3.Operation {
-	if doc.Paths == nil {
+func findRawOperation(doc *v3.Document, op model.ResolvedOperation) *v3.Operation {
+	if doc == nil || doc.Paths == nil || doc.Paths.PathItems == nil {
 		return nil
 	}
-	pathItem := doc.Paths.Find(op.Path)
+	pathItem := doc.Paths.PathItems.GetOrZero(op.Path)
 	if pathItem == nil {
 		return nil
 	}
-	return pathItem.GetOperation(strings.ToUpper(op.Method))
+	ops := pathItem.GetOperations()
+	if ops == nil {
+		return nil
+	}
+	return ops.GetOrZero(strings.ToLower(op.Method))
+}
+
+func jsonMediaType(content *orderedmap.Map[string, *v3.MediaType]) *v3.MediaType {
+	if content == nil {
+		return nil
+	}
+	for pair := content.Oldest(); pair != nil; pair = pair.Next() {
+		if strings.Contains(pair.Key, "application/json") {
+			return pair.Value
+		}
+	}
+	return nil
 }

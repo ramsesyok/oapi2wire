@@ -6,57 +6,64 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getkin/kin-openapi/openapi3"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/ramsesyok/oapi2wire/internal/model"
 )
 
 // BuildOperationIndex scans all paths/methods in doc and returns:
 //   - map[operationId]ResolvedOperation for fast lookup
 //   - []Diagnostic for duplicate operationIds (error)
-func BuildOperationIndex(doc *openapi3.T) (map[string]model.ResolvedOperation, []model.Diagnostic) {
+func BuildOperationIndex(doc *v3.Document) (map[string]model.ResolvedOperation, []model.Diagnostic) {
 	index := make(map[string]model.ResolvedOperation)
 	var diags []model.Diagnostic
 
-	if doc.Paths == nil {
+	if doc == nil || doc.Paths == nil || doc.Paths.PathItems == nil {
 		return index, diags
 	}
 
-	// Sort paths for deterministic iteration order
-	pathMap := doc.Paths.Map()
-	paths := make([]string, 0, len(pathMap))
-	for p := range pathMap {
-		paths = append(paths, p)
+	paths := make([]string, 0)
+	pathItems := make(map[string]*v3.PathItem)
+	for pair := doc.Paths.PathItems.Oldest(); pair != nil; pair = pair.Next() {
+		paths = append(paths, pair.Key)
+		pathItems[pair.Key] = pair.Value
 	}
 	sort.Strings(paths)
 
 	for _, path := range paths {
-		pathItem := pathMap[path]
-		ops := pathItem.Operations()
+		pathItem := pathItems[path]
+		if pathItem == nil {
+			continue
+		}
+		ops := pathItem.GetOperations()
+		if ops == nil {
+			continue
+		}
 
-		// Sort methods for deterministic order
-		methods := make([]string, 0, len(ops))
-		for m := range ops {
-			methods = append(methods, m)
+		methods := make([]string, 0, ops.Len())
+		operationByMethod := make(map[string]*v3.Operation)
+		for pair := ops.Oldest(); pair != nil; pair = pair.Next() {
+			methods = append(methods, pair.Key)
+			operationByMethod[pair.Key] = pair.Value
 		}
 		sort.Strings(methods)
 
 		for _, method := range methods {
-			op := ops[method]
-			if op.OperationID == "" {
+			op := operationByMethod[method]
+			if op == nil || op.OperationId == "" {
 				continue
 			}
 
-			if _, exists := index[op.OperationID]; exists {
+			if _, exists := index[op.OperationId]; exists {
 				diags = append(diags, model.Diagnostic{
 					Severity: model.SeverityError,
 					Path:     fmt.Sprintf("paths[%s].%s", path, strings.ToLower(method)),
-					Message:  fmt.Sprintf("duplicate operationId %q", op.OperationID),
+					Message:  fmt.Sprintf("duplicate operationId %q", op.OperationId),
 				})
 				continue
 			}
 
 			resolved := model.ResolvedOperation{
-				OperationID:          op.OperationID,
+				OperationID:          op.OperationId,
 				Method:               strings.ToUpper(method),
 				Path:                 path,
 				PathParams:           extractPathParams(op, pathItem),
@@ -64,7 +71,7 @@ func BuildOperationIndex(doc *openapi3.T) (map[string]model.ResolvedOperation, [
 				HasJSONBody:          hasJSONRequestBody(op),
 				RepresentativeStatus: resolveRepresentativeStatus(op.Responses),
 			}
-			index[op.OperationID] = resolved
+			index[op.OperationId] = resolved
 		}
 	}
 
@@ -73,16 +80,16 @@ func BuildOperationIndex(doc *openapi3.T) (map[string]model.ResolvedOperation, [
 
 // resolveRepresentativeStatus picks the best response status for init templates.
 // Priority: first 2xx → first response → 200.
-func resolveRepresentativeStatus(responses *openapi3.Responses) int {
+func resolveRepresentativeStatus(responses *v3.Responses) int {
 	if responses == nil {
 		return 200
 	}
 
-	// Sort status codes for deterministic iteration
-	statusMap := responses.Map()
-	codes := make([]string, 0, len(statusMap))
-	for code := range statusMap {
-		codes = append(codes, code)
+	codes := make([]string, 0)
+	if responses.Codes != nil {
+		for pair := responses.Codes.Oldest(); pair != nil; pair = pair.Next() {
+			codes = append(codes, pair.Key)
+		}
 	}
 	sort.Strings(codes)
 
@@ -106,16 +113,15 @@ func resolveRepresentativeStatus(responses *openapi3.Responses) int {
 }
 
 // extractPathParams returns parameter names for in=path parameters.
-func extractPathParams(op *openapi3.Operation, pathItem *openapi3.PathItem) []string {
+func extractPathParams(op *v3.Operation, pathItem *v3.PathItem) []string {
 	seen := make(map[string]bool)
 	var names []string
 
-	collect := func(params openapi3.Parameters) {
-		for _, pRef := range params {
-			if pRef == nil || pRef.Value == nil {
+	collect := func(params []*v3.Parameter) {
+		for _, p := range params {
+			if p == nil {
 				continue
 			}
-			p := pRef.Value
 			if p.In == "path" && !seen[p.Name] {
 				seen[p.Name] = true
 				names = append(names, p.Name)
@@ -135,21 +141,21 @@ func extractPathParams(op *openapi3.Operation, pathItem *openapi3.PathItem) []st
 }
 
 // extractQueryParams returns QueryParam entries for in=query parameters.
-func extractQueryParams(op *openapi3.Operation, pathItem *openapi3.PathItem) []model.QueryParam {
+func extractQueryParams(op *v3.Operation, pathItem *v3.PathItem) []model.QueryParam {
 	seen := make(map[string]bool)
 	var params []model.QueryParam
 
-	collect := func(ps openapi3.Parameters) {
-		for _, pRef := range ps {
-			if pRef == nil || pRef.Value == nil {
+	collect := func(ps []*v3.Parameter) {
+		for _, p := range ps {
+			if p == nil {
 				continue
 			}
-			p := pRef.Value
 			if p.In == "query" && !seen[p.Name] {
 				seen[p.Name] = true
+				required := p.Required != nil && *p.Required
 				params = append(params, model.QueryParam{
 					Name:     p.Name,
-					Required: p.Required,
+					Required: required,
 				})
 			}
 		}
@@ -166,10 +172,14 @@ func extractQueryParams(op *openapi3.Operation, pathItem *openapi3.PathItem) []m
 }
 
 // hasJSONRequestBody returns true if the operation has a requestBody with application/json.
-func hasJSONRequestBody(op *openapi3.Operation) bool {
-	if op.RequestBody == nil || op.RequestBody.Value == nil {
+func hasJSONRequestBody(op *v3.Operation) bool {
+	if op.RequestBody == nil || op.RequestBody.Content == nil {
 		return false
 	}
-	_, ok := op.RequestBody.Value.Content["application/json"]
-	return ok
+	for pair := op.RequestBody.Content.Oldest(); pair != nil; pair = pair.Next() {
+		if strings.Contains(pair.Key, "application/json") {
+			return true
+		}
+	}
+	return false
 }
