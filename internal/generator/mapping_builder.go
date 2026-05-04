@@ -1,11 +1,21 @@
 package generator
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 
 	"github.com/ramsesyok/oapi2wire/internal/model"
 )
+
+// newUUID generates a random UUID v4.
+func newUUID() string {
+	b := make([]byte, 16)
+	rand.Read(b) //nolint:errcheck
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
 
 // BuildMapping converts one CaseSpec + its ResolvedOperation into a WireMockMapping.
 // It merges default headers from CaseFile.Defaults into the response headers.
@@ -18,7 +28,7 @@ func BuildMapping(cs model.CaseSpec, op model.ResolvedOperation, defaults model.
 	headers := mergeHeaders(defaults.Response.Headers, cs.Response.Headers)
 
 	return model.WireMockMapping{
-		ID:       cs.ID,
+		ID:       newUUID(),
 		Name:     cs.ID,
 		Priority: cs.Priority,
 		Metadata: model.WireMockMeta{

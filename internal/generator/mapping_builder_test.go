@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -38,8 +39,9 @@ func TestBuildMapping_PathAndQuery(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if m.ID != "getUser_detail_100" {
-		t.Errorf("expected id getUser_detail_100, got %s", m.ID)
+	uuidRE := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	if !uuidRE.MatchString(m.ID) {
+		t.Errorf("expected id to be a UUID v4, got %s", m.ID)
 	}
 	if m.Request.Method != "GET" {
 		t.Errorf("expected method GET, got %s", m.Request.Method)
