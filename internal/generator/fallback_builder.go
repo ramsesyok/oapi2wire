@@ -43,7 +43,7 @@ func BuildFallback(op model.ResolvedOperation) FallbackResult {
 	bodyBytes = append(bodyBytes, '\n')
 
 	mapping := model.WireMockMapping{
-		ID:       fmt.Sprintf("_generated_fallback_%s", op.OperationID),
+		ID:       newUUID(),
 		Name:     fmt.Sprintf("_generated_fallback_%s", op.OperationID),
 		Priority: autoFallbackPriority,
 		Metadata: model.WireMockMeta{
