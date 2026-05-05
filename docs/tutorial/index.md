@@ -40,7 +40,7 @@ docs/
 - PetStore OpenAPI 定義: `docs/tutorial/openapi.yaml`
 - WireMock standalone: `docs/tools/wiremock-standalone-3.13.2.jar`
 
-`docs/tools/wiremock-standalone-3.13.2.jar` は Git には登録しない前提です。チュートリアルを実行する環境ごとに配置してください。
+`docs/tools/wiremock-standalone-3.13.2.jar` は Git には登録しない前提です。チュートリアルを実行する環境ごとに WireMock standalone jar を配置してください。別のバージョンの jar を使う場合は、以降の `java -jar` コマンド内のファイル名も実際の jar 名に合わせて読み替えてください。
 
 `oapi2wire` をソースからビルドする場合は、リポジトリルートで次のように実行します。
 
@@ -111,6 +111,8 @@ PetStore には multipart/form-data や form-urlencoded の操作も含まれま
 ## 3. case YAML を編集する
 
 生成された `mock-cases.yaml` を編集して、リクエスト条件とレスポンスを定義します。
+
+このチュートリアルでは、`init` が作成した `getPetById_default`、`findPetsByStatus_default`、`placeOrder_default` の 3 ケースを、以下のケース定義に置き換える前提で説明します。新しいケースとして追加しても構いませんが、その場合は既存の `_default` ケースと `id` が重複しないようにし、意図しないケースが先に一致しないよう `priority` と matcher を確認してください。
 
 ここでは、代表的な 3 種類の返し分けを作ります。
 
@@ -247,6 +249,8 @@ oapi2wire validate \
 
 レスポンス JSON の存在も厳しく確認したい場合は、`build` 時に `--fail-on-missing-body-file` を付けます。
 
+PetStore 全体を `init` した直後の雛形には、`getInventory` や `logoutUser` のように request matcher を持たない operation も含まれます。そのため、編集内容によっては matcher なしケースに関する warning が表示されることがあります。warning は確認対象のケースに問題がなければ通常どおり次へ進めます。
+
 ## 6. WireMock 用ファイルを生成する
 
 case YAML とレスポンス JSON をもとに、WireMock が読み込む `mappings/` と `__files/` を生成します。
@@ -261,7 +265,7 @@ oapi2wire build \
   --fail-on-missing-body-file
 ```
 
-生成後の構成は次のようになります。
+生成後の構成は次のようになります。PetStore のすべての operation について通常 mapping と自動 fallback が生成されますが、ここではチュートリアルで確認する主なファイルだけを抜粋しています。
 
 ```text
 wiremock-out/
@@ -333,6 +337,15 @@ curl -i \
   -d '{"petId":100,"quantity":1,"status":"placed","complete":false}'
 ```
 
+Windows PowerShell から実行する場合は、`curl` が alias と衝突しないよう `curl.exe` を使い、JSON の引用符が崩れない形で送信します。
+
+```powershell
+curl.exe -i `
+  -X POST http://localhost:8080/store/order `
+  -H 'Content-Type: application/json' `
+  -d '{"petId":100,"quantity":1,"status":"placed","complete":false}'
+```
+
 `placeOrder_pet_100` に一致すると、`mock-responses/placeOrder/placeOrder_pet_100.json` の内容が返ります。
 
 ### fallback の確認
@@ -376,7 +389,7 @@ base URL: http://localhost:8080
 
 `docs/tools/wiremock-standalone-3.13.2.jar` があるか確認してください。
 
-`docs/tutorial` から起動する場合、コマンド内の jar パスは `../tools/wiremock-standalone-3.13.2.jar` です。
+`docs/tutorial` から起動する場合、コマンド内の jar パスは `../tools/wiremock-standalone-3.13.2.jar` です。別のバージョンの jar を置いた場合は、ファイル名部分を実際の jar 名に変更してください。
 
 ### Java が見つからない
 
@@ -413,6 +426,7 @@ fallback が返る場合は、WireMock が通常ケースに一致していま�
 - query parameter の名前が OpenAPI と case YAML でずれている
 - JSON body のフィールドが足りない
 - `equalToJson` に指定した値とリクエスト body の値が違う
+- PowerShell で `curl` の JSON body の引用符が崩れ、意図した JSON が送信されていない
 
 まずは `matchesJsonPath` を使って、必要なフィールドだけを見る形にすると確認しやすくなります。
 
