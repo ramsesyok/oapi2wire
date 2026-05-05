@@ -37,7 +37,7 @@ func TestCheckOperationIDsExist_Error(t *testing.T) {
 	cases := []model.CaseSpec{
 		{ID: "c1", OperationID: "nonExistent", Response: model.ResponseSpec{Status: 200, BodyFile: "x/x.json"}},
 	}
-	diags := checkOperationIDsExist(cases, ops, true)
+	diags := checkOperationIDsExist(cases, ops, ValidateConfig{FailOnMissingOperation: true})
 	if !model.HasErrors(diags) {
 		t.Error("expected error when FailOnMissingOperation=true")
 	}
@@ -48,7 +48,7 @@ func TestCheckOperationIDsExist_Warning(t *testing.T) {
 	cases := []model.CaseSpec{
 		{ID: "c1", OperationID: "nonExistent", Response: model.ResponseSpec{Status: 200, BodyFile: "x/x.json"}},
 	}
-	diags := checkOperationIDsExist(cases, ops, false)
+	diags := checkOperationIDsExist(cases, ops, ValidateConfig{FailOnMissingOperation: false})
 	if model.HasErrors(diags) {
 		t.Error("expected warning (not error) when FailOnMissingOperation=false")
 	}

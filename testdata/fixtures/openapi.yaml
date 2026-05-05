@@ -5,6 +5,8 @@ info:
 paths:
   /users/{id}:
     get:
+      tags:
+        - pet
       operationId: getUser
       parameters:
         - in: path
@@ -32,6 +34,8 @@ paths:
 
   /users:
     post:
+      tags:
+        - user
       operationId: createUser
       requestBody:
         required: true

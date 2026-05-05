@@ -48,6 +48,7 @@ type InitOptions struct {
 	ResponsesRoot string
 	Force         bool
 	Strict        bool
+	Tags          []string
 }
 
 // InitResult describes generated init outputs.
@@ -70,6 +71,7 @@ type BuildOptions struct {
 	FailOnMissingOperation bool
 	FailOnMissingBodyFile  bool
 	NoAutoFallback         bool
+	Tags                   []string
 }
 
 // BuildResult describes generated WireMock outputs.
@@ -91,6 +93,7 @@ type ValidateOptions struct {
 	Strict                 bool
 	FailOnMissingOperation bool
 	FailOnMissingBodyFile  bool
+	Tags                   []string
 }
 
 // ValidateResult contains accumulated validation diagnostics.
@@ -110,7 +113,9 @@ func Init(opts InitOptions) (*InitResult, error) {
 		return result, fmt.Errorf("loading OpenAPI: %w", err)
 	}
 
-	ops, modelDiags := openapi.BuildOperationIndex(doc)
+	allOps, modelDiags := openapi.BuildOperationIndex(doc)
+	ops, filterDiags := openapi.FilterOperationsByTags(allOps, opts.Tags)
+	modelDiags = append(modelDiags, filterDiags...)
 	diags := convertDiagnostics(modelDiags)
 	result.Diagnostics = diags
 	if hasErrors(diags) {
@@ -154,11 +159,13 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		return result, fmt.Errorf("loading OpenAPI: %w", err)
 	}
 
-	ops, modelDiags := openapi.BuildOperationIndex(doc)
+	allOps, modelDiags := openapi.BuildOperationIndex(doc)
 	if model.HasErrors(modelDiags) {
 		result.Diagnostics = convertDiagnostics(modelDiags)
 		return result, fmt.Errorf("OpenAPI has errors")
 	}
+	ops, filterDiags := openapi.FilterOperationsByTags(allOps, opts.Tags)
+	modelDiags = append(modelDiags, filterDiags...)
 
 	cf, err := cases.Load(opts.CasesPath)
 	if err != nil {
@@ -170,6 +177,8 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		FailOnMissingOperation: opts.FailOnMissingOperation,
 		FailOnMissingBodyFile:  opts.FailOnMissingBodyFile,
 		ResponsesRoot:          opts.ResponsesRoot,
+		KnownOperationIDs:      operationIDSet(allOps),
+		TagFilterActive:        len(opts.Tags) > 0,
 	})...)
 	diags := convertDiagnostics(modelDiags)
 	result.Diagnostics = diags
@@ -202,8 +211,9 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		result.MappingsWritten++
 	}
 
+	targetCases := filterCasesByOperations(cf.Cases, ops)
 	filesDir := filepath.Join(opts.OutDir, "__files")
-	copied, err := generator.CopyBodyFiles(cf.Cases, opts.ResponsesRoot, filesDir)
+	copied, err := generator.CopyBodyFiles(targetCases, opts.ResponsesRoot, filesDir)
 	if err != nil {
 		return result, fmt.Errorf("copying body files: %w", err)
 	}
@@ -245,11 +255,13 @@ func Validate(opts ValidateOptions) (*ValidateResult, error) {
 		return result, fmt.Errorf("loading OpenAPI: %w", err)
 	}
 
-	ops, modelDiags := openapi.BuildOperationIndex(doc)
+	allOps, modelDiags := openapi.BuildOperationIndex(doc)
 	if model.HasErrors(modelDiags) {
 		result.Diagnostics = convertDiagnostics(modelDiags)
 		return result, fmt.Errorf("OpenAPI has errors")
 	}
+	ops, filterDiags := openapi.FilterOperationsByTags(allOps, opts.Tags)
+	modelDiags = append(modelDiags, filterDiags...)
 
 	cf, err := cases.Load(opts.CasesPath)
 	if err != nil {
@@ -261,6 +273,8 @@ func Validate(opts ValidateOptions) (*ValidateResult, error) {
 		FailOnMissingOperation: opts.FailOnMissingOperation,
 		FailOnMissingBodyFile:  opts.FailOnMissingBodyFile,
 		ResponsesRoot:          opts.ResponsesRoot,
+		KnownOperationIDs:      operationIDSet(allOps),
+		TagFilterActive:        len(opts.Tags) > 0,
 	})...)
 	diags := convertDiagnostics(modelDiags)
 	result.Diagnostics = diags
@@ -304,4 +318,22 @@ func hasErrors(diags []Diagnostic) bool {
 		}
 	}
 	return false
+}
+
+func operationIDSet(ops map[string]model.ResolvedOperation) map[string]struct{} {
+	set := make(map[string]struct{}, len(ops))
+	for id := range ops {
+		set[id] = struct{}{}
+	}
+	return set
+}
+
+func filterCasesByOperations(allCases []model.CaseSpec, ops map[string]model.ResolvedOperation) []model.CaseSpec {
+	cases := make([]model.CaseSpec, 0, len(allCases))
+	for _, cs := range allCases {
+		if _, ok := ops[cs.OperationID]; ok {
+			cases = append(cases, cs)
+		}
+	}
+	return cases
 }

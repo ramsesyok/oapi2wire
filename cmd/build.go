@@ -20,6 +20,7 @@ var (
 	buildFailOnMissingOp   bool
 	buildFailOnMissingBody bool
 	buildNoAutoFallback    bool
+	buildTags              []string
 )
 
 var buildCmd = &cobra.Command{
@@ -41,6 +42,7 @@ func init() {
 	buildCmd.Flags().BoolVar(&buildFailOnMissingOp, "fail-on-missing-operation", false, "Fail if case operationId not found in OpenAPI")
 	buildCmd.Flags().BoolVar(&buildFailOnMissingBody, "fail-on-missing-body-file", false, "Fail if bodyFile not found in responses-root")
 	buildCmd.Flags().BoolVar(&buildNoAutoFallback, "no-auto-fallback", false, "Disable automatic fallback generation")
+	buildCmd.Flags().StringSliceVar(&buildTags, "tags", nil, "OpenAPI operation tags to include")
 	if err := buildCmd.MarkFlagRequired("openapi"); err != nil {
 		panic(err)
 	}
@@ -57,6 +59,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		FailOnMissingOperation: buildFailOnMissingOp,
 		FailOnMissingBodyFile:  buildFailOnMissingBody,
 		NoAutoFallback:         buildNoAutoFallback,
+		Tags:                   buildTags,
 	})
 	printDiags(result.Diagnostics)
 	if err != nil {

@@ -15,24 +15,45 @@ type ValidateConfig struct {
 	FailOnMissingOperation bool
 	FailOnMissingBodyFile  bool
 	ResponsesRoot          string
+	KnownOperationIDs      map[string]struct{}
+	TagFilterActive        bool
 }
 
 // Validate runs all validation rules against cf and the operation index.
 // Returns accumulated []Diagnostic; caller checks model.HasErrors to decide exit code.
 func Validate(cf *model.CaseFile, ops map[string]model.ResolvedOperation, cfg ValidateConfig) []model.Diagnostic {
 	var diags []model.Diagnostic
+	scopedCases := casesInScope(cf.Cases, ops, cfg)
 
 	diags = append(diags, checkDuplicateCaseIDs(cf.Cases)...)
-	diags = append(diags, checkOperationIDsExist(cf.Cases, ops, cfg.FailOnMissingOperation)...)
-	diags = append(diags, checkFallbackRules(cf.Cases)...)
-	diags = append(diags, checkPathParamNames(cf.Cases, ops)...)
-	diags = append(diags, checkBodyFilePaths(cf.Cases, cfg.ResponsesRoot, cfg.FailOnMissingBodyFile)...)
-	diags = append(diags, checkEmptyMatchers(cf.Cases)...)
-	diags = append(diags, checkDuplicateConditions(cf.Cases)...)
-	diags = append(diags, checkDuplicatePriorities(cf.Cases)...)
-	diags = append(diags, checkMissingBodyMatcher(cf.Cases, ops)...)
+	diags = append(diags, checkOperationIDsExist(cf.Cases, ops, cfg)...)
+	diags = append(diags, checkFallbackRules(scopedCases)...)
+	diags = append(diags, checkPathParamNames(scopedCases, ops)...)
+	diags = append(diags, checkBodyFilePaths(scopedCases, cfg.ResponsesRoot, cfg.FailOnMissingBodyFile)...)
+	diags = append(diags, checkEmptyMatchers(scopedCases)...)
+	diags = append(diags, checkDuplicateConditions(scopedCases)...)
+	diags = append(diags, checkDuplicatePriorities(scopedCases)...)
+	diags = append(diags, checkMissingBodyMatcher(scopedCases, ops)...)
 
 	return diags
+}
+
+func casesInScope(cases []model.CaseSpec, ops map[string]model.ResolvedOperation, cfg ValidateConfig) []model.CaseSpec {
+	if !cfg.TagFilterActive {
+		return cases
+	}
+
+	scoped := make([]model.CaseSpec, 0, len(cases))
+	for _, c := range cases {
+		if _, ok := ops[c.OperationID]; ok {
+			scoped = append(scoped, c)
+			continue
+		}
+		if _, known := cfg.KnownOperationIDs[c.OperationID]; !known {
+			scoped = append(scoped, c)
+		}
+	}
+	return scoped
 }
 
 func checkDuplicateCaseIDs(cases []model.CaseSpec) []model.Diagnostic {
@@ -53,13 +74,23 @@ func checkDuplicateCaseIDs(cases []model.CaseSpec) []model.Diagnostic {
 	return diags
 }
 
-func checkOperationIDsExist(cases []model.CaseSpec, ops map[string]model.ResolvedOperation, fail bool) []model.Diagnostic {
+func checkOperationIDsExist(cases []model.CaseSpec, ops map[string]model.ResolvedOperation, cfg ValidateConfig) []model.Diagnostic {
 	var diags []model.Diagnostic
 
 	for i, c := range cases {
 		if _, ok := ops[c.OperationID]; !ok {
+			if cfg.TagFilterActive {
+				if _, known := cfg.KnownOperationIDs[c.OperationID]; known {
+					diags = append(diags, model.Diagnostic{
+						Severity: model.SeverityWarning,
+						Path:     fmt.Sprintf("cases[%d].operationId", i),
+						Message:  fmt.Sprintf("operationId %q is outside the tag filter", c.OperationID),
+					})
+					continue
+				}
+			}
 			sev := model.SeverityWarning
-			if fail {
+			if cfg.FailOnMissingOperation {
 				sev = model.SeverityError
 			}
 			diags = append(diags, model.Diagnostic{
