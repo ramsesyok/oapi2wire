@@ -5,6 +5,7 @@ type ResolvedOperation struct {
 	OperationID          string
 	Method               string       // uppercase: GET, POST, etc.
 	Path                 string       // as written in OpenAPI: /users/{id}
+	Tags                 []string     // OpenAPI operation tags, in source order
 	PathParams           []string     // ordered list of path parameter names
 	QueryParams          []QueryParam // all query parameters
 	HasJSONBody          bool         // true when requestBody has application/json

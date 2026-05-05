@@ -16,6 +16,7 @@ var (
 	initResponsesRoot string
 	initForce         bool
 	initStrict        bool
+	initTags          []string
 )
 
 var initCmd = &cobra.Command{
@@ -33,6 +34,7 @@ func init() {
 	initCmd.Flags().StringVar(&initResponsesRoot, "responses-root", "mock-responses", "Responses root directory")
 	initCmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing files")
 	initCmd.Flags().BoolVar(&initStrict, "strict", false, "Treat OpenAPI inconsistencies as errors")
+	initCmd.Flags().StringSliceVar(&initTags, "tags", nil, "OpenAPI operation tags to include")
 	if err := initCmd.MarkFlagRequired("openapi"); err != nil {
 		panic(err)
 	}
@@ -45,6 +47,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		ResponsesRoot: initResponsesRoot,
 		Force:         initForce,
 		Strict:        initStrict,
+		Tags:          initTags,
 	})
 	printDiags(result.Diagnostics)
 	if err != nil {

@@ -15,6 +15,7 @@ var (
 	validateOpenAPI       string
 	validateCases         string
 	validateResponsesRoot string
+	validateTags          []string
 )
 
 var validateCmd = &cobra.Command{
@@ -29,6 +30,7 @@ func init() {
 	validateCmd.Flags().StringVar(&validateOpenAPI, "openapi", "", "Path to OpenAPI file (required)")
 	validateCmd.Flags().StringVar(&validateCases, "cases", "mock-cases.yaml", "Path to case YAML file")
 	validateCmd.Flags().StringVar(&validateResponsesRoot, "responses-root", "mock-responses", "Responses root directory")
+	validateCmd.Flags().StringSliceVar(&validateTags, "tags", nil, "OpenAPI operation tags to include")
 	if err := validateCmd.MarkFlagRequired("openapi"); err != nil {
 		panic(err)
 	}
@@ -39,6 +41,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		OpenAPIPath:   validateOpenAPI,
 		CasesPath:     validateCases,
 		ResponsesRoot: validateResponsesRoot,
+		Tags:          validateTags,
 	})
 	printDiags(result.Diagnostics)
 	if err != nil {

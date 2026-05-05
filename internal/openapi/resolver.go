@@ -66,6 +66,7 @@ func BuildOperationIndex(doc *v3.Document) (map[string]model.ResolvedOperation, 
 				OperationID:          op.OperationId,
 				Method:               strings.ToUpper(method),
 				Path:                 path,
+				Tags:                 append([]string(nil), op.Tags...),
 				PathParams:           extractPathParams(op, pathItem),
 				QueryParams:          extractQueryParams(op, pathItem),
 				HasJSONBody:          hasJSONRequestBody(op),
@@ -76,6 +77,45 @@ func BuildOperationIndex(doc *v3.Document) (map[string]model.ResolvedOperation, 
 	}
 
 	return index, diags
+}
+
+// FilterOperationsByTags returns operations that have at least one exact tag match.
+// Empty tags keep the original operation index unchanged.
+func FilterOperationsByTags(ops map[string]model.ResolvedOperation, tags []string) (map[string]model.ResolvedOperation, []model.Diagnostic) {
+	if len(tags) == 0 {
+		return ops, nil
+	}
+
+	wanted := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		wanted[tag] = struct{}{}
+	}
+
+	filtered := make(map[string]model.ResolvedOperation)
+	for opID, op := range ops {
+		if operationHasAnyTag(op, wanted) {
+			filtered[opID] = op
+		}
+	}
+
+	if len(filtered) == 0 {
+		return filtered, []model.Diagnostic{{
+			Severity: model.SeverityWarning,
+			Path:     "tags",
+			Message:  fmt.Sprintf("no operations matched tags: %s", strings.Join(tags, ", ")),
+		}}
+	}
+
+	return filtered, nil
+}
+
+func operationHasAnyTag(op model.ResolvedOperation, wanted map[string]struct{}) bool {
+	for _, tag := range op.Tags {
+		if _, ok := wanted[tag]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveRepresentativeStatus picks the best response status for init templates.
