@@ -26,6 +26,12 @@ OpenAPI を正本としつつ、返し分け条件（パスパラメータ・ク
 go install github.com/ramsesyok/oapi2wire@latest
 ```
 
+バージョンを固定して利用する場合：
+
+```bash
+go install github.com/ramsesyok/oapi2wire@v0.2.0
+```
+
 または、ソースからビルド：
 
 ```bash
@@ -42,10 +48,12 @@ go build -o oapi2wire .
 oapi2wire init \
   --openapi ./openapi.yaml \
   --out-cases ./mock-cases.yaml \
-  --responses-root ./mock-responses
+  --responses-root ./mock-responses \
+  --tags pet
 ```
 
 OpenAPI の各 `operationId` に対して case YAML テンプレートとレスポンス JSON 雛形を生成します。
+`--tags` を指定した場合は、指定 tag を持つ operation のみを対象にします。
 
 ### 2. case YAML を編集
 
@@ -58,7 +66,8 @@ oapi2wire build \
   --openapi ./openapi.yaml \
   --cases ./mock-cases.yaml \
   --responses-root ./mock-responses \
-  --out ./wiremock-out
+  --out ./wiremock-out \
+  --tags pet
 ```
 
 ### 4. 整合性検証
@@ -67,7 +76,8 @@ oapi2wire build \
 oapi2wire validate \
   --openapi ./openapi.yaml \
   --cases ./mock-cases.yaml \
-  --responses-root ./mock-responses
+  --responses-root ./mock-responses \
+  --tags pet
 ```
 
 ## コマンドリファレンス
@@ -85,6 +95,7 @@ oapi2wire init --openapi <path> [flags]
 | `--responses-root` | `mock-responses` | レスポンス雛形の出力ディレクトリ |
 | `--force` | `false` | 既存ファイルを上書きする |
 | `--strict` | `false` | OpenAPI の不整合をエラーとして扱う |
+| `--tags` | なし | 対象にする OpenAPI operation tag（複数指定可） |
 
 ### `build`
 
@@ -103,6 +114,7 @@ oapi2wire build --openapi <path> [flags]
 | `--fail-on-missing-operation` | `false` | operationId が OpenAPI に存在しない場合エラー |
 | `--fail-on-missing-body-file` | `false` | bodyFile が存在しない場合エラー |
 | `--no-auto-fallback` | `false` | fallback の自動生成を無効化する |
+| `--tags` | なし | 対象にする OpenAPI operation tag（複数指定可） |
 
 ### `validate`
 
@@ -115,6 +127,37 @@ oapi2wire validate --openapi <path> [flags]
 | `--openapi` | （必須） | OpenAPI ファイルのパス |
 | `--cases` | `mock-cases.yaml` | case YAML のパス |
 | `--responses-root` | `mock-responses` | レスポンス JSON のディレクトリ |
+| `--tags` | なし | 対象にする OpenAPI operation tag（複数指定可） |
+
+## OpenAPI tag フィルタ
+
+`init` / `validate` / `build` は OpenAPI operation の `tags` で対象 operation を絞り込めます。
+
+```bash
+oapi2wire init --openapi ./openapi.yaml --tags pet
+oapi2wire validate --openapi ./openapi.yaml --cases ./mock-cases.yaml --tags pet
+oapi2wire build --openapi ./openapi.yaml --cases ./mock-cases.yaml --tags pet
+```
+
+- `--tags` 未指定の場合は、従来どおり全 operation が対象です
+- `--tags pet` の場合は `tags: ["pet"]` を持つ operation のみ対象です
+- `--tags pet,store` の場合は `pet` または `store` を持つ operation が対象です
+- tag 比較は完全一致・大文字小文字を区別します
+- tag フィルタ指定時、tag を持たない operation は対象外です
+- `build` の自動 fallback 生成も tag 対象 operation のみに行われます
+
+tag フィルタ指定時に case YAML 内へ対象外 operation の case が残っている場合、`validate` は missing operation エラーとは扱わず、対象外であることを warning として報告します。
+
+Go の公開 API からも同じフィルタを利用できます。
+
+```go
+result, err := oapi2wire.Init(oapi2wire.InitOptions{
+	OpenAPIPath:   "./openapi.yaml",
+	OutCasesPath:  "./mock-cases.yaml",
+	ResponsesRoot: "./mock-responses",
+	Tags:          []string{"pet"},
+})
+```
 
 ## case YAML 仕様
 
@@ -238,6 +281,8 @@ info:
 paths:
   /users/{id}:
     get:
+      tags:
+        - pet
       operationId: getUser
       parameters:
         - in: path
@@ -264,6 +309,8 @@ paths:
                     type: string
   /users:
     post:
+      tags:
+        - user
       operationId: createUser
       requestBody:
         required: true
