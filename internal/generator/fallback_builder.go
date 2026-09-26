@@ -32,6 +32,7 @@ func BuildFallback(op model.ResolvedOperation) FallbackResult {
 	safeOperationID := safeFileNamePart(op.OperationID)
 	mappingFile := fmt.Sprintf("_generated__fallback__%s.json", safeOperationID)
 	bodyFile := fmt.Sprintf("_generated/fallback/%s.json", safeOperationID)
+	caseID := fmt.Sprintf("_generated_fallback_%s", op.OperationID)
 
 	body := map[string]interface{}{
 		"message":     "no mock case matched",
@@ -43,13 +44,13 @@ func BuildFallback(op model.ResolvedOperation) FallbackResult {
 	bodyBytes = append(bodyBytes, '\n')
 
 	mapping := model.WireMockMapping{
-		ID:       newUUID(),
-		Name:     fmt.Sprintf("_generated_fallback_%s", op.OperationID),
+		ID:       mappingUUID(op.OperationID, caseID),
+		Name:     caseID,
 		Priority: autoFallbackPriority,
 		Metadata: model.WireMockMeta{
 			Generator:   "oapi2wire",
 			OperationID: op.OperationID,
-			CaseID:      fmt.Sprintf("_generated_fallback_%s", op.OperationID),
+			CaseID:      caseID,
 		},
 		Request: model.WireMockRequest{
 			Method:          op.Method,

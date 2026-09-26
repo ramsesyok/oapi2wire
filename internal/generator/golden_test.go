@@ -93,7 +93,7 @@ func TestBuildMappings_Golden(t *testing.T) {
 		}
 
 		// Compare as JSON to ignore whitespace differences.
-		// The "id" field is a random UUID v4, so normalize it before comparing.
+		// The "id" field is derived from operationId and caseId, so it is compared as is.
 		var got, want map[string]interface{}
 		if err := json.Unmarshal(gotData, &got); err != nil {
 			t.Fatalf("parsing got JSON %s: %v", e.Name(), err)
@@ -101,9 +101,6 @@ func TestBuildMappings_Golden(t *testing.T) {
 		if err := json.Unmarshal(wantData, &want); err != nil {
 			t.Fatalf("parsing want JSON %s: %v", e.Name(), err)
 		}
-
-		got["id"] = "<uuid>"
-		want["id"] = "<uuid>"
 
 		gotNorm, _ := json.MarshalIndent(got, "", "  ")
 		wantNorm, _ := json.MarshalIndent(want, "", "  ")

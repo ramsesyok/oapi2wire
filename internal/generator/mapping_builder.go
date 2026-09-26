@@ -1,18 +1,20 @@
 package generator
 
 import (
-	"crypto/rand"
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 
 	"github.com/ramsesyok/oapi2wire/internal/model"
 )
 
-// newUUID generates a random UUID v4.
-func newUUID() string {
-	b := make([]byte, 16)
-	rand.Read(b) //nolint:errcheck
-	b[6] = (b[6] & 0x0f) | 0x40
+// mappingUUID derives a name-based UUID (version 5 layout) from operationId and caseId.
+// WireMock requires mapping ids to be UUIDs; deriving them from the case keeps
+// build output identical for identical input.
+func mappingUUID(operationID, caseID string) string {
+	sum := sha1.Sum([]byte("oapi2wire\x00" + operationID + "\x00" + caseID))
+	b := sum[:16]
+	b[6] = (b[6] & 0x0f) | 0x50
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
@@ -28,7 +30,7 @@ func BuildMapping(cs model.CaseSpec, op model.ResolvedOperation, defaults model.
 	headers := mergeHeaders(defaults.Response.Headers, cs.Response.Headers)
 
 	return model.WireMockMapping{
-		ID:       newUUID(),
+		ID:       mappingUUID(op.OperationID, cs.ID),
 		Name:     cs.ID,
 		Priority: cs.Priority,
 		Metadata: model.WireMockMeta{
