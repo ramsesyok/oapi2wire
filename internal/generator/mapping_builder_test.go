@@ -10,6 +10,36 @@ import (
 
 func ptr(s string) *string { return &s }
 
+var uuidRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+
+func TestMappingUUID(t *testing.T) {
+	tests := []struct {
+		name        string
+		operationID string
+		caseID      string
+		sameAs      [2]string
+		wantSame    bool
+	}{
+		{name: "same input gives same id", operationID: "getUser", caseID: "c1", sameAs: [2]string{"getUser", "c1"}, wantSame: true},
+		{name: "different case gives different id", operationID: "getUser", caseID: "c1", sameAs: [2]string{"getUser", "c2"}, wantSame: false},
+		{name: "different operation gives different id", operationID: "getUser", caseID: "c1", sameAs: [2]string{"listUsers", "c1"}, wantSame: false},
+		{name: "concatenation is not ambiguous", operationID: "ab", caseID: "c", sameAs: [2]string{"a", "bc"}, wantSame: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mappingUUID(tt.operationID, tt.caseID)
+			if !uuidRE.MatchString(got) {
+				t.Fatalf("mappingUUID(%q, %q) = %s, want UUID format", tt.operationID, tt.caseID, got)
+			}
+			other := mappingUUID(tt.sameAs[0], tt.sameAs[1])
+			if (got == other) != tt.wantSame {
+				t.Errorf("mappingUUID(%q, %q) = %s, mappingUUID(%q, %q) = %s, wantSame %v",
+					tt.operationID, tt.caseID, got, tt.sameAs[0], tt.sameAs[1], other, tt.wantSame)
+			}
+		})
+	}
+}
+
 var sampleOp = model.ResolvedOperation{
 	OperationID: "getUser",
 	Method:      "GET",
@@ -39,9 +69,8 @@ func TestBuildMapping_PathAndQuery(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	uuidRE := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 	if !uuidRE.MatchString(m.ID) {
-		t.Errorf("expected id to be a UUID v4, got %s", m.ID)
+		t.Errorf("expected id to be a UUID, got %s", m.ID)
 	}
 	if m.Request.Method != "GET" {
 		t.Errorf("expected method GET, got %s", m.Request.Method)
