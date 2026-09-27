@@ -10,7 +10,7 @@ import (
 
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/ramsesyok/oapi2wire/internal/model"
-	"github.com/ramsesyok/oapi2wire/pkg/oapisample"
+	"github.com/ramsesyok/oapi2wire/pkg/sample"
 )
 
 // TemplateResult is the full generated init output for one run.
@@ -133,9 +133,9 @@ func parameterLookup(doc *v3.Document, op model.ResolvedOperation, rawOp *v3.Ope
 }
 
 // paramValue はパラメータの初期値 (OpenAPI の example など。なければ "TODO") を YAML の文字列にする。
-// runnora generate のテストケースと同じ値になる (pkg/oapisample)。
+// runnora generate のテストケースと同じ値になる (pkg/sample)。
 func paramValue(lookup paramLookup, name, in string) string {
-	return fmt.Sprintf("%q", oapisample.ParameterString(lookup(name, in)))
+	return fmt.Sprintf("%q", sample.ParameterString(lookup(name, in)))
 }
 
 // buildRequestYAML generates the request: sub-block as indented YAML lines (8-space indent base).
@@ -203,17 +203,17 @@ func buildBodyYAML(rawOp *v3.Operation) string {
 	if rawOp.RequestBody == nil {
 		return ""
 	}
-	mt := oapisample.JSONMediaType(rawOp.RequestBody.Content)
+	mt := sample.JSONMediaType(rawOp.RequestBody.Content)
 	if mt == nil {
 		return ""
 	}
 
-	sample := oapisample.MediaType(mt)
-	if sample == nil {
-		sample = map[string]interface{}{}
+	value := sample.MediaType(mt, sample.Request)
+	if value == nil {
+		value = map[string]interface{}{}
 	}
 
-	return fmt.Sprintf("        equalToJson:\n%s", valueToYAML(sample, "          "))
+	return fmt.Sprintf("        equalToJson:\n%s", valueToYAML(value, "          "))
 }
 
 // valueToYAML renders a Go value as YAML lines with the given indent prefix.
@@ -286,8 +286,8 @@ func responseBodyFor(doc *v3.Document, op model.ResolvedOperation) interface{} {
 	if rawOp.Responses != nil && rawOp.Responses.Codes != nil {
 		resp := rawOp.Responses.Codes.GetOrZero(fmt.Sprintf("%d", op.RepresentativeStatus))
 		if resp != nil {
-			if sample := oapisample.MediaType(oapisample.JSONMediaType(resp.Content)); sample != nil {
-				return sample
+			if value := sample.MediaType(sample.JSONMediaType(resp.Content), sample.Response); value != nil {
+				return value
 			}
 		}
 	}

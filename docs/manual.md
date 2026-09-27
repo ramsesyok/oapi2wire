@@ -187,10 +187,14 @@ cases:
 |---|---|
 | パラメータ | parameter の `example` → `examples` の最初 → スキーマの値（配列なら要素の値）→ `"TODO"` |
 | 本文（リクエスト・応答） | media type の `example` → `examples` の最初 → スキーマの値 |
-| スキーマの値 | `example` → `default` → `enum` の最初 → `allOf` / `anyOf` / `oneOf` の最初 → 型による値 |
-| 型による値 | object はプロパティを展開、array は 1 要素、string は `"TODO"`（format が `date` / `date-time` / `uuid` ならその形の値）、integer / number は `0`、boolean は `true` |
+| スキーマの値 | `example` → `examples` の最初（3.1）→ `default` → `const` → `enum` の最初 → `allOf`（プロパティを合成）/ `oneOf`・`anyOf`（最初。`discriminator` があれば最初の mapping の値を入れる）→ format の値 → 制約と型による値 |
+| format の値 | `date` `2026-01-01`、`date-time` `2026-01-01T00:00:00Z`、`time` `00:00:00`、`email` `user@example.com`、`uri` / `url` `https://example.com/`、`hostname` `example.com`、`ipv4` `192.0.2.1`、`ipv6` `2001:db8::1`、`uuid` `00000000-0000-4000-8000-000000000001`、`byte` `c2FtcGxl`、`binary` `TODO: path/to/file` |
+| 制約と型による値 | string は `"TODO"`（`pattern` があれば `"TODO: pattern <pattern>"`）、integer は `0`・number は `0.0`（`minimum` などで 0 が許されなければ 0 に最も近い許される値）、boolean は `true`、array は `minItems`（なければ 1）個、object はプロパティを展開（`additionalProperties` だけなら `{"TODO": 値}`） |
 
-この決め方は runnora の `runnora generate`（テストケースの生成）と共通です（`pkg/oapisample`）。
+- リクエストの本文には `readOnly` のプロパティを入れず、応答の本文には `writeOnly` のプロパティを入れません。
+- 自分自身を参照するスキーマは、同じスキーマが 2 回目に現れたところで `null` にします。
+
+この決め方は runnora の `runnora generate`（テストケースの生成）と共通です（`pkg/sample`。規則は runnora の [サンプル生成の詳細設計](https://github.com/ramsesyok/runnora/blob/main/docs/design/sample-generation.md) の 5 章）。
 同じ OpenAPI から作ったモックの雛形とテストケースは、パラメータ・リクエスト本文・応答本文が同じ値になります。
 OpenAPI に `example` を書いておくと、両方の雛形がそのまま一致する具体的な値になります。
 
