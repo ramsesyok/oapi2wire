@@ -174,14 +174,25 @@ cases:
 
 | OpenAPI | 雛形の中身 |
 |---|---|
-| path parameter | `pathParams.<名前>.equalTo: "TODO"` |
-| 必須の query parameter | `query.<名前>.equalTo: "TODO"` |
-| 任意の query parameter | コメント（`# optional query parameters:`）で案内する |
-| JSON の requestBody | example があればそれ、なければ schema から作った最小の JSON を `body.equalToJson` に入れる |
+| path parameter | `pathParams.<名前>.equalTo: "<パラメータの値>"` |
+| 必須の query parameter | `query.<名前>.equalTo: "<パラメータの値>"` |
+| 任意の query parameter | コメント（`# optional query parameters:`）で、値とともに案内する |
+| JSON の requestBody | 本文の値を `body.equalToJson` に入れる |
 | 応答の status | 最初の 2xx → なければ最初の応答 → 応答がなければ 200 |
-| レスポンス JSON | 応答の example → schema から作った最小の JSON → `{}` |
+| レスポンス JSON | 応答の本文の値 → 決まらなければ `{}` |
 
-schema から最小の JSON を作るときは、object はプロパティを展開、array は 1 要素、string は `"TODO"`、integer / number は `0`、boolean は `true` にします。
+値の決め方（上から順に、最初に見つかったもの）：
+
+| 対象 | 決め方 |
+|---|---|
+| パラメータ | parameter の `example` → `examples` の最初 → スキーマの値（配列なら要素の値）→ `"TODO"` |
+| 本文（リクエスト・応答） | media type の `example` → `examples` の最初 → スキーマの値 |
+| スキーマの値 | `example` → `default` → `enum` の最初 → `allOf` / `anyOf` / `oneOf` の最初 → 型による値 |
+| 型による値 | object はプロパティを展開、array は 1 要素、string は `"TODO"`（format が `date` / `date-time` / `uuid` ならその形の値）、integer / number は `0`、boolean は `true` |
+
+この決め方は runnora の `runnora generate`（テストケースの生成）と共通です（`pkg/oapisample`）。
+同じ OpenAPI から作ったモックの雛形とテストケースは、パラメータ・リクエスト本文・応答本文が同じ値になります。
+OpenAPI に `example` を書いておくと、両方の雛形がそのまま一致する具体的な値になります。
 
 `"TODO"` のまま build すると、そのケースは実際のリクエストに一致しません（fallback が返ります）。必ず実際の値に書き換えてください。
 
