@@ -30,5 +30,6 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.Version = currentVersion()
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

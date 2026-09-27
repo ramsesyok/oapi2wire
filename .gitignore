@@ -1,2 +1,4 @@
 *.exe
 docs/tools/wiremock-standalone-3.13.2.jar
+# goreleaser の出力
+/dist/

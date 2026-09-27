@@ -22,6 +22,10 @@ OpenAPI を正本としつつ、返し分け条件（パスパラメータ・ク
 
 ## インストール
 
+[Releases](https://github.com/ramsesyok/oapi2wire/releases) から OS / アーキテクチャに合ったアーカイブ（Windows は `oapi2wire_v<バージョン>_windows_amd64.zip`）をダウンロードし、展開した `oapi2wire` を PATH の通った場所に置きます。`oapi2wire --version` でバージョンを確認できます。
+
+Go がある場合は `go install` でも入れられます。
+
 ```bash
 go install github.com/ramsesyok/oapi2wire@latest
 ```
@@ -39,6 +43,14 @@ git clone https://github.com/ramsesyok/oapi2wire.git
 cd oapi2wire
 go build -o oapi2wire .
 ```
+
+### リリースの作り方（メンテナ向け）
+
+`v0.4.0` のような `v` で始まるタグを付けると、GitHub Actions（`.github/workflows/release.yml`）がテストを実行してから、
+GoReleaser（`.goreleaser.yaml`）で Linux / macOS / Windows（amd64 / arm64）向けの実行ファイルを作り、Release に添付します。
+
+- ブラウザの場合：Releases → Draft a new release → Choose a tag で新しいタグ（例：`v0.4.0`）を入力し、`main` を対象に Publish release する
+- Actions の画面から：Release → Run workflow でタグ名を入力する（`main` の先頭にタグを付けてリリースする）
 
 ## クイックスタート
 
