@@ -83,6 +83,8 @@ OpenAPI は API の設計正本であり、モックケースの細かい返し�
 
 CLI は 3 コマンドに分ける。
 
+3 コマンドとも `--tags`（対象にする OpenAPI operation の tag）を持つ（MVP の後に追加）。現在の動作の詳細は [利用マニュアル](manual.md) を参照。
+
 ## 4.1 init
 
 OpenAPI から case YAML テンプレートとレスポンス雛形を生成する。
@@ -135,9 +137,9 @@ oapi2wire build \
 * `--clean`
   出力先を削除してから再生成
 * `--strict`
-  不明項目や未対応記法をエラーにする
+  警告が 1 件でもあればエラーにする（実装では、不明項目の検出ではなく警告のエラー化として実装した）
 * `--fail-on-missing-operation`
-  case YAML の operationId が OpenAPI に無い場合エラー終了
+  case YAML の operationId が OpenAPI に無い場合エラー終了（指定しない場合は警告とし、そのケースの mapping は出力しない）
 * `--fail-on-missing-body-file`
   bodyFile が responses-root に無い場合エラー終了
 * `--no-auto-fallback`
@@ -153,6 +155,8 @@ oapi2wire validate \
   --cases ./mock-cases.yaml \
   --responses-root ./mock-responses
 ```
+
+validate は `--fail-on-missing-*` を持たないため、存在しない operationId と見つからない bodyFile は警告として報告する。
 
 # 5. 対応範囲
 
@@ -384,6 +388,8 @@ request:
   `_generated/fallback/<operationId>.json`
 * status
   501
+* priority
+  1000000（どの通常ケース・明示 fallback よりも後に照合される）
 * body 内容
   自動生成 JSON
 
@@ -763,7 +769,7 @@ WireMock:
 
 ```json
 {
-  "id": "getUser_detail_100",
+  "id": "643ae8a0-de04-5a84-afb5-78fb3d272bd9",
   "name": "getUser_detail_100",
   "priority": 10,
   "metadata": {
@@ -794,6 +800,8 @@ WireMock:
   }
 }
 ```
+
+`id` は WireMock の決まりで UUID にする。当初は乱数の UUID だったが、build のたびに出力が変わって差分を確認できないため、operationId と caseId から作る名前ベースの UUID（version 5 の形式）に変えた。同じ入力なら同じ出力になる。
 
 # 13. bodyFile と responses-root の扱い
 
@@ -836,7 +844,7 @@ wiremock-out/__files/getUser/getUser_default.json
 1. OpenAPI が読めない
 2. OpenAPI 内の operationId が重複
 3. case の id が重複
-4. case の operationId が OpenAPI に存在しない
+4. case の operationId が OpenAPI に存在しない（実装では `build --fail-on-missing-operation` のときだけエラー。それ以外は警告）
 5. fallback が 1 operationId に複数ある
 6. fallback ケースに request がある
 7. pathParams 名が OpenAPI の path parameter 名と一致しない
@@ -850,7 +858,7 @@ wiremock-out/__files/getUser/getUser_default.json
 1. matcher が空なのに fallback でない
 2. 同一 operationId・同一 request 条件のケースが複数ある
 3. priority が重複している
-4. optional query parameter がコメントのみで、実ケースに未反映
+4. optional query parameter がコメントのみで、実ケースに未反映（未実装）
 5. OpenAPI に requestBody があるが case に body matcher が無い
 
 # 15. 実装アーキテクチャ

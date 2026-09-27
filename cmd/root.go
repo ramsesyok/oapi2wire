@@ -10,8 +10,11 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "oapi2wire",
-	Short: "Generate WireMock stubs from OpenAPI definitions",
+	Use: "oapi2wire",
+	// 検証エラーなどで毎回使い方を表示すると、エラーと警告の一覧が読みにくくなる。
+	// 引数の誤り (必須フラグの不足など) は cobra がエラーメッセージで知らせる。
+	SilenceUsage: true,
+	Short:        "Generate WireMock stubs from OpenAPI definitions",
 	Long: `oapi2wire generates WireMock mappings/ and __files/
 from OpenAPI definitions and case YAML files.
 
