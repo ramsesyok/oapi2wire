@@ -442,6 +442,10 @@ case YAML は完全手動ではなく、OpenAPI から初期テンプレート�
 2. 2xx が無ければ最初の response
 3. response が無ければ 200
 
+**値の決め方（実装で拡張）**：パラメータ・本文・スキーマの値は `pkg/sample` で決める。runnora generate（テストケースの生成）と共通の処理で、同じ OpenAPI から作ったモックとテストの初期値を一致させるため。規則は runnora の [サンプル生成の詳細設計](https://github.com/ramsesyok/runnora/blob/main/docs/design/sample-generation.md) の 5 章（example などの優先順位、format の値、制約に沿った数値、`allOf` の合成、`readOnly` / `writeOnly`、循環の打ち切り）。
+パラメータは OpenAPI の `example`（なければ `examples`、スキーマの値）を使い、決まらない場合だけ `"TODO"` にする。10.8 の型ごとの値は、その規則の一部として引き継いでいる。
+以下の生成例は、OpenAPI に `example` などがない場合のもの。
+
 ## 10.4 path parameter がある場合のテンプレート
 
 OpenAPI:

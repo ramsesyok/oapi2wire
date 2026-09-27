@@ -9,9 +9,8 @@ import (
 	"strings"
 
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
-	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/ramsesyok/oapi2wire/internal/model"
-	oapipkg "github.com/ramsesyok/oapi2wire/internal/openapi"
+	"github.com/ramsesyok/oapi2wire/pkg/sample"
 )
 
 // TemplateResult is the full generated init output for one run.
@@ -90,7 +89,7 @@ func GenerateTemplate(doc *v3.Document, ops map[string]model.ResolvedOperation) 
 		sb.WriteString("    priority: 100\n")
 
 		// Build request block
-		requestYAML := buildRequestYAML(op, rawOp)
+		requestYAML := buildRequestYAML(op, rawOp, parameterLookup(doc, op, rawOp))
 		if requestYAML != "" {
 			sb.WriteString("    request:\n")
 			sb.WriteString(requestYAML)
@@ -109,9 +108,39 @@ func GenerateTemplate(doc *v3.Document, ops map[string]model.ResolvedOperation) 
 	return result, nil
 }
 
+// paramLookup は名前と場所 (path / query) からパラメータ定義を返す。なければ nil。
+type paramLookup func(name, in string) *v3.Parameter
+
+// parameterLookup は operation と path item のパラメータ定義を引く関数を返す (operation 側が優先)。
+func parameterLookup(doc *v3.Document, op model.ResolvedOperation, rawOp *v3.Operation) paramLookup {
+	var params []*v3.Parameter
+	if rawOp != nil {
+		params = append(params, rawOp.Parameters...)
+	}
+	if doc != nil && doc.Paths != nil && doc.Paths.PathItems != nil {
+		if item := doc.Paths.PathItems.GetOrZero(op.Path); item != nil {
+			params = append(params, item.Parameters...)
+		}
+	}
+	return func(name, in string) *v3.Parameter {
+		for _, p := range params {
+			if p != nil && p.Name == name && p.In == in {
+				return p
+			}
+		}
+		return nil
+	}
+}
+
+// paramValue はパラメータの初期値 (OpenAPI の example など。なければ "TODO") を YAML の文字列にする。
+// runnora generate のテストケースと同じ値になる (pkg/sample)。
+func paramValue(lookup paramLookup, name, in string) string {
+	return fmt.Sprintf("%q", sample.ParameterString(lookup(name, in)))
+}
+
 // buildRequestYAML generates the request: sub-block as indented YAML lines (8-space indent base).
 // Returns empty string if nothing to render.
-func buildRequestYAML(op model.ResolvedOperation, rawOp *v3.Operation) string {
+func buildRequestYAML(op model.ResolvedOperation, rawOp *v3.Operation, lookup paramLookup) string {
 	var sb strings.Builder
 
 	hasPathParams := len(op.PathParams) > 0
@@ -135,7 +164,7 @@ func buildRequestYAML(op model.ResolvedOperation, rawOp *v3.Operation) string {
 		sb.WriteString("      pathParams:\n")
 		for _, name := range op.PathParams {
 			sb.WriteString(fmt.Sprintf("        %s:\n", name))
-			sb.WriteString("          equalTo: \"TODO\"\n")
+			sb.WriteString(fmt.Sprintf("          equalTo: %s\n", paramValue(lookup, name, "path")))
 		}
 	}
 
@@ -145,7 +174,7 @@ func buildRequestYAML(op model.ResolvedOperation, rawOp *v3.Operation) string {
 		for _, qp := range op.QueryParams {
 			if qp.Required {
 				sb.WriteString(fmt.Sprintf("        %s:\n", qp.Name))
-				sb.WriteString("          equalTo: \"TODO\"\n")
+				sb.WriteString(fmt.Sprintf("          equalTo: %s\n", paramValue(lookup, qp.Name, "query")))
 			}
 		}
 	}
@@ -153,7 +182,7 @@ func buildRequestYAML(op model.ResolvedOperation, rawOp *v3.Operation) string {
 		sb.WriteString("      # optional query parameters:\n")
 		for _, name := range optionalQueryNames {
 			sb.WriteString(fmt.Sprintf("      # %s:\n", name))
-			sb.WriteString("      #   equalTo: \"TODO\"\n")
+			sb.WriteString(fmt.Sprintf("      #   equalTo: %s\n", paramValue(lookup, name, "query")))
 		}
 	}
 
@@ -174,17 +203,17 @@ func buildBodyYAML(rawOp *v3.Operation) string {
 	if rawOp.RequestBody == nil {
 		return ""
 	}
-	mt := jsonMediaType(rawOp.RequestBody.Content)
+	mt := sample.JSONMediaType(rawOp.RequestBody.Content)
 	if mt == nil {
 		return ""
 	}
 
-	sample := oapipkg.FirstRequestBodyExample(rawOp)
-	if sample == nil {
-		sample = map[string]interface{}{}
+	value := sample.MediaType(mt, sample.Request)
+	if value == nil {
+		value = map[string]interface{}{}
 	}
 
-	return fmt.Sprintf("        equalToJson:\n%s", valueToYAML(sample, "          "))
+	return fmt.Sprintf("        equalToJson:\n%s", valueToYAML(value, "          "))
 }
 
 // valueToYAML renders a Go value as YAML lines with the given indent prefix.
@@ -253,25 +282,12 @@ func responseBodyFor(doc *v3.Document, op model.ResolvedOperation) interface{} {
 		return map[string]interface{}{}
 	}
 
-	// Try response example
-	if rawOp.Responses != nil {
-		example := oapipkg.FirstResponseExample(rawOp.Responses, op.RepresentativeStatus)
-		if example != nil {
-			return example
-		}
-
-		// Try response schema
-		statusStr := fmt.Sprintf("%d", op.RepresentativeStatus)
-		if rawOp.Responses.Codes != nil {
-			resp := rawOp.Responses.Codes.GetOrZero(statusStr)
-			if resp != nil {
-				mt := jsonMediaType(resp.Content)
-				if mt != nil && mt.Schema != nil {
-					sample := oapipkg.MinimalSample(mt.Schema)
-					if sample != nil {
-						return sample
-					}
-				}
+	// 応答の example → examples の最初 → スキーマの値 (runnora generate の期待本文と同じ値)
+	if rawOp.Responses != nil && rawOp.Responses.Codes != nil {
+		resp := rawOp.Responses.Codes.GetOrZero(fmt.Sprintf("%d", op.RepresentativeStatus))
+		if resp != nil {
+			if value := sample.MediaType(sample.JSONMediaType(resp.Content), sample.Response); value != nil {
+				return value
 			}
 		}
 	}
@@ -292,16 +308,4 @@ func findRawOperation(doc *v3.Document, op model.ResolvedOperation) *v3.Operatio
 		return nil
 	}
 	return ops.GetOrZero(strings.ToLower(op.Method))
-}
-
-func jsonMediaType(content *orderedmap.Map[string, *v3.MediaType]) *v3.MediaType {
-	if content == nil {
-		return nil
-	}
-	for pair := content.Oldest(); pair != nil; pair = pair.Next() {
-		if strings.Contains(pair.Key, "application/json") {
-			return pair.Value
-		}
-	}
-	return nil
 }

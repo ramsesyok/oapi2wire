@@ -93,3 +93,47 @@ func TestGenerateTemplate_ResponseBodies(t *testing.T) {
 		t.Errorf("unexpected createUser body: %v", cm)
 	}
 }
+
+// パラメータの初期値は OpenAPI の example などから決める (runnora generate のテストケースと同じ値)。
+// example がなければ "TODO"。
+func TestGenerateTemplate_ParameterExamples(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.yaml")
+	spec := `openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /books/{bookId}:
+    get:
+      operationId: getBook
+      parameters:
+        - {name: bookId, in: path, required: true, schema: {type: string}, example: B0001}
+        - {name: mode, in: query, required: true, schema: {type: string, enum: [detail, simple]}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+        - {name: note, in: query, required: true, schema: {type: string}}
+      responses:
+        "200": {description: ok}
+`
+	if err := os.WriteFile(path, []byte(spec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := openapi.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops, _ := openapi.BuildOperationIndex(doc)
+	result, err := GenerateTemplate(doc, ops)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(result.CaseYAML)
+	for _, want := range []string{
+		"        bookId:\n          equalTo: \"B0001\"\n",
+		"        mode:\n          equalTo: \"detail\"\n",
+		"        note:\n          equalTo: \"TODO\"\n",
+		"      # page:\n      #   equalTo: \"1\"\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("case YAML should contain %q:\n%s", want, got)
+		}
+	}
+}
