@@ -2,6 +2,8 @@
 
 このチュートリアルでは、PetStore の OpenAPI 定義から WireMock standalone で起動できるモックサーバ資産を作成します。
 
+コマンドの詳細な仕様、エラーと警告の一覧、運用のしかたは [利用マニュアル](../manual.md) を参照してください。
+
 `oapi2wire` は WireMock を直接起動するツールではありません。OpenAPI 定義、case YAML、レスポンス JSON を入力として、WireMock が読み込む `mappings/` と `__files/` を生成するツールです。
 
 ```text
@@ -362,8 +364,19 @@ fallback が返った場合は、リクエスト条件が case YAML の matcher 
 
 runnora で作成したテストケースの接続先を WireMock に向けると、OpenAPI から生成したモックサーバに対してテストケースを確認できます。
 
-```text
-base URL: http://localhost:8080
+runnora（新形式）では、`runnora.yaml` の環境に WireMock の URL を書き、その環境でテストを実行します。
+
+```yaml
+# runnora.yaml
+environments:
+  mock:
+    vars:
+      API_URL: "http://localhost:8080"          # runbook の runners に ${API_URL} と書く
+      RUNNORA_BASE_URL: "http://localhost:8080" # runnora generate の template の接続先
+```
+
+```bash
+runnora run --env mock runbooks/petstore.yml
 ```
 
 確認の流れは次のとおりです。
@@ -373,7 +386,7 @@ base URL: http://localhost:8080
 3. `response.status` と `bodyFile` を、期待したいレスポンスに合わせる
 4. `mock-responses/` の JSON を編集する
 5. `oapi2wire build --clean` で WireMock 用ファイルを再生成する
-6. WireMock を再起動して、runnora から実行する
+6. WireMock を再起動して、runnora から実行する（`runnora run --env mock ...`）
 
 テストケースが fallback に落ちる場合は、次の点を確認します。
 
@@ -465,6 +478,6 @@ WireMock がすでに起動している場合は、再生成後に WireMock を�
 - `docs/tutorial/mock-responses/`
 - `docs/tutorial/wiremock-out/`
 
-`mock-cases.yaml` と `mock-responses/` は、チームで共有したいモック定義として Git 管理してもよいです。`wiremock-out/` は `build` で再生成できるため、通常は Git 管理しない運用が扱いやすいです。
+`mock-cases.yaml` と `mock-responses/` は、チームで共有したいモック定義として Git 管理してもよいです。`wiremock-out/` は `build` で再生成できるため、通常は Git 管理しない運用が扱いやすいです。mapping の `id` は operationId とケースの `id` から決まる UUID で、同じ入力なら毎回同じ出力になるので、生成物の差分をレビューしたい場合は Git 管理しても構いません。
 
 `docs/tools/wiremock-standalone-3.13.2.jar` は Git に登録しない前提です。
