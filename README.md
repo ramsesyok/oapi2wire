@@ -462,4 +462,5 @@ go build -o oapi2wire .
 
 ## ライセンス
 
-[LICENSE](LICENSE) を参照してください。
+自作部分は [MIT License](LICENSE)（Copyright (c) 2026 ramsesyok）です。
+依存ライブラリの表示は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)、利用・配布時の条件は [ライセンス方針](docs/license-policy.md) を参照してください。

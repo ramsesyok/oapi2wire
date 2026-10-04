@@ -2,6 +2,10 @@ version: 2
 
 project_name: oapi2wire
 
+before:
+  hooks:
+    - go run scripts/licenses.go
+
 builds:
   - id: oapi2wire
     main: .
@@ -24,6 +28,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - THIRD_PARTY_NOTICES.md
 
 checksum:
   name_template: checksums.txt
